@@ -116,6 +116,8 @@ function M.highlights(completion_item, ft)
 		item = M.rust_compute_completion_highlights(completion_item, ft)
 	elseif ft == "lua" then
 		item = M.lua_compute_completion_highlights(completion_item, ft)
+	elseif ft == "zig" then
+		item = M.zig_compute_completion_highlights(completion_item, ft)
 	elseif ft == "c" then
 		item = M.c_compute_completion_highlights(completion_item, ft)
 	elseif vim.tbl_contains(M.config.ft.typescript.enabled, ft) then
@@ -519,6 +521,61 @@ function M._c_compute_completion_highlights(completion_item, ft)
 		text = label,
 		highlights = {},
 	}
+end
+
+function M.zig_compute_completion_highlights(completion_item, ft)
+	local label = completion_item.label
+	local detail = completion_item.detail
+		or (completion_item.labelDetails and completion_item.labelDetails.detail or completion_item.detail)
+	local kind = completion_item.kind
+
+	if not kind then
+		return M.highlight_range(label, ft, 0, #label - 1)
+	end
+
+	if (kind == M.Kind.Constant or kind == M.Kind.Variable or kind == M.Kind.Struct) and detail then
+		if detail == "type" then
+			local source = string.format("fn(s: %s)", label)
+			return M.highlight_range(source, ft, 6, 5 + #label)
+		else
+			local text = string.format("%s: %s", label, detail)
+			local source = string.format("fn(%s)", text)
+			return M.highlight_range(source, ft, 3, 2 + #text)
+		end
+		--
+	elseif kind == M.Kind.Field and detail then
+		-- const x = struct { name: []const u8 };
+		local text = string.format("%s: %s", label, detail)
+		local source = string.format("const x = struct { %s }", text)
+		return M.highlight_range(source, ft, 19, 18 + #text)
+		--
+	elseif (kind == M.Kind.Function or kind == M.Kind.Method) and detail then
+		if detail:sub(1, 2) == "fn" then
+			local signature = detail:sub(4)
+			local text = string.format("%s%s", label, signature)
+			local source = string.format("fn %s {}", text)
+			local item = M.highlight_range(source, ft, 3, 3 + #text)
+			return item
+		end
+		--
+	else
+		local highlight_name = nil
+		if kind == M.Kind.Keyword then
+			highlight_name = "@keyword"
+		else
+			highlight_name = M.config.fallback_highlight
+		end
+		return {
+			text = completion_item.label,
+			highlights = {
+				{
+					highlight_name,
+					range = { 0, #completion_item.label },
+				},
+			},
+		}
+	end
+	return {}
 end
 
 function M.go_compute_completion_highlights(completion_item, ft)
