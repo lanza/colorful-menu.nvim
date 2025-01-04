@@ -39,6 +39,8 @@ M.config = {
 
 local query_cache = {}
 local parser_cache = {}
+local parser_cache_size = 0
+local MAX_PARSER_CACHE_SIZE = 10000
 
 function M.compute_highlights(str, ls)
     local highlights = {}
@@ -64,6 +66,11 @@ function M.compute_highlights(str, ls)
         ok, parser = pcall(vim.treesitter.get_string_parser, str, lang)
         if not ok then
             return {}
+        end
+        parser_cache_size = parser_cache_size + 1
+        if parser_cache_size > MAX_PARSER_CACHE_SIZE then
+            parser_cache_size = 0
+            parser_cache = {}
         end
         parser_cache[str .. "!!" .. ls] = parser
     else
@@ -507,7 +514,7 @@ function M.c_compute_completion_highlights(completion_item, ls)
 end
 
 -- Add this in your module, alongside the other compute functions
-function M._c_compute_completion_highlights(completion_item, ft)
+function M._c_compute_completion_highlights(completion_item, ls)
     local label = completion_item.label
     local kind = completion_item.kind
     local detail = completion_item.detail
