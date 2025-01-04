@@ -152,7 +152,7 @@ function M.highlights(completion_item, ls)
         item = M.rust_compute_completion_highlights(completion_item, ls)
     elseif ls == "lua_ls" then
         item = M.lua_compute_completion_highlights(completion_item, ls)
-    elseif ls == "clangd" then
+    elseif ls == "clangd" and vim.bo.filetype == "c" then
         item = M.c_compute_completion_highlights(completion_item, ls)
     elseif ls == "typescript-language-server" or ls == "ts_ls" then
         item = M.typescript_language_server_label_for_completion(completion_item, ls)

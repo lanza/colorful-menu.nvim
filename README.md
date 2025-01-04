@@ -54,6 +54,7 @@ return {
                 },
                 clangd = {
                     -- Such as "From <stdio.h>".
+                    -- Only support C for now.
                     extra_info_hl = "@comment",
                 },
 
