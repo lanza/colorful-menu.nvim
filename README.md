@@ -29,30 +29,31 @@ return {
     config = function()
         -- You don't need to set these options.
         require("colorful-menu").setup({
-            ft = {
-                lua = {
+            ls = {
+                lua_ls = {
                     -- Maybe you want to dim arguments a bit.
                     auguments_hl = "@comment",
                 },
-                go = {
+                gopls = {
                     -- When true, label for field and variable will format like "foo: Foo"
                     -- instead of go's original syntax "foo Foo".
                     add_colon_before_type = false,
                 },
-                typescript = {
-                    -- Add more filetype when needed, these three taken from lspconfig are default value.
-                    enabled = { "typescript", "typescriptreact", "typescript.tsx" },
-                    -- Or "vtsls", their information is different, so we
-                    -- need to know in advance.
-                    ls = "typescript-language-server",
+                ["typescript-language-server"] = {
                     extra_info_hl = "@comment",
                 },
-                rust = {
+                ts_ls = {
+                    extra_info_hl = "@comment",
+                },
+                vtsls = {
+                    extra_info_hl = "@comment",
+                },
+                ["rust-analyzer"] = {
                     -- Such as (as Iterator), (use std::io).
                     extra_info_hl = "@comment",
                 },
-                c = {
-                    -- Such as "From <stdio.h>"
+                clangd = {
+                    -- Such as "From <stdio.h>".
                     extra_info_hl = "@comment",
                 },
 
@@ -77,9 +78,10 @@ return {
 formatting = {
     fields = { "kind", "abbr", "menu" },
     format = function(entry, vim_item)
+        local client_name = vim.tbl_get(entry, "source", "source", "client", "name") -- For example `lua_ls` etc
         local completion_item = entry:get_completion_item()
         local highlights_info =
-            require("colorful-menu").highlights(completion_item, vim.bo.filetype)
+            require("colorful-menu").highlights(completion_item, client_name)
 
 		-- error, such as missing parser, fallback to use raw label.
         if highlights_info == nil then
@@ -107,13 +109,17 @@ config = function()
     require("blink.cmp").setup({
         completion = {
             menu = {
+                auto_show = true,
                 draw = {
                     components = {
                         label = {
                             width = { fill = true, max = 60 },
                             text = function(ctx)
-                                local highlights_info =
-                                require("colorful-menu").highlights(ctx.item, vim.bo.filetype)
+                                local client = vim.lsp.get_client_by_id(ctx.item.client_id)
+                                if not client then
+                                    return ctx.label
+                                end
+                                local highlights_info = require("colorful-menu").highlights(ctx.item, client.name)
                                 if highlights_info ~= nil then
                                     return highlights_info.text
                                 else
@@ -121,16 +127,19 @@ config = function()
                                 end
                             end,
                             highlight = function(ctx)
-                                local highlights_info =
-                                require("colorful-menu").highlights(ctx.item, vim.bo.filetype)
+                                local client = vim.lsp.get_client_by_id(ctx.item.client_id)
                                 local highlights = {}
-                                if highlights_info ~= nil then
-                                    for _, info in ipairs(highlights_info.highlights) do
-                                        table.insert(highlights, {
-                                            info.range[1],
-                                            info.range[2],
-                                            group = ctx.deprecated and "BlinkCmpLabelDeprecated" or info[1],
-                                        })
+                                if client then
+                                    local highlights_info =
+                                    require("colorful-menu").highlights(ctx.item, client.name)
+                                    if highlights_info ~= nil then
+                                        for _, info in ipairs(highlights_info.highlights) do
+                                            table.insert(highlights, {
+                                                info.range[1],
+                                                info.range[2],
+                                                group = ctx.deprecated and "BlinkCmpLabelDeprecated" or info[1],
+                                            })
+                                        end
                                     end
                                 end
                                 for _, idx in ipairs(ctx.label_matched_indices) do

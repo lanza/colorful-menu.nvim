@@ -4,37 +4,32 @@ local insertTextFormat = { PlainText = 1, Snippet = 2 }
 M.Kind = { Text = 1, Method = 2, Function = 3, Constructor = 4, Field = 5, Variable = 6, Class = 7, Interface = 8, Module = 9, Property = 10, Unit = 11, Value = 12, Enum = 13, Keyword = 14, Snippet = 15, Color = 16, File = 17, Reference = 18, Folder = 19, EnumMember = 20, Constant = 21, Struct = 22, Event = 23, Operator = 24, TypeParameter = 25 }
 
 M.config = {
-    ft = {
-        lua = {
+    ls = {
+        lua_ls = {
             -- Maybe you want to dim arguments a bit.
             auguments_hl = "@comment",
         },
-        go = {
+        gopls = {
             -- When true, label for field and variable will format like "foo: Foo"
             -- instead of go's original syntax "foo Foo".
             add_colon_before_type = false,
         },
-        typescript = {
-            -- Add more filetype when needed, these three taken from lspconfig are default value.
-            enabled = { "typescript", "typescriptreact", "typescript.tsx" },
-            -- Or "vtsls", their information is different, so we
-            -- need to know in advance.
-            ls = "typescript-language-server",
+        ["typescript-language-server"] = {
             extra_info_hl = "@comment",
         },
-        rust = {
+        ts_ls = {
+            extra_info_hl = "@comment",
+        },
+        vtsls = {
+            extra_info_hl = "@comment",
+        },
+        ["rust-analyzer"] = {
             -- Such as (as Iterator), (use std::io).
             extra_info_hl = "@comment",
-            overrides = {
-                -- [3] = function(completion_item) end, -- 3 = Function, for all the kinds, see https://github.com/xzbdmw/colorful-menu.nvim/blob/56871ac630383d4135b7b123e5dc2dafb22e76f7/lua/colorful-menu/init.lua#L4
-            },
         },
-        c = {
+        clangd = {
             -- Such as "From <stdio.h>".
             extra_info_hl = "@comment",
-            overrides = {
-                -- [6] = function(completion_item) end, -- 6 = Variable
-            },
         },
         fallback = true,
     },
@@ -45,33 +40,38 @@ M.config = {
 local query_cache = {}
 local parser_cache = {}
 
-function M.compute_highlights(str, filetype)
+function M.compute_highlights(str, ls)
     local highlights = {}
 
+    local lang = vim.treesitter.language.get_lang(vim.bo.filetype)
+    if not lang then
+        return {}
+    end
+
     local query, ok
-    if query_cache[filetype] == nil then
-        ok, query = pcall(vim.treesitter.query.get, filetype, "highlights")
+    if query_cache[ls] == nil then
+        ok, query = pcall(vim.treesitter.query.get, lang, "highlights")
         if not ok then
             return {}
         end
-        query_cache[filetype] = query
+        query_cache[ls] = query
     else
-        query = query_cache[filetype]
+        query = query_cache[ls]
     end
 
     local parser
-    if parser_cache[str .. "!!" .. filetype] == nil then
-        ok, parser = pcall(vim.treesitter.get_string_parser, str, filetype)
+    if parser_cache[str .. "!!" .. ls] == nil then
+        ok, parser = pcall(vim.treesitter.get_string_parser, str, lang)
         if not ok then
             return {}
         end
-        parser_cache[str .. "!!" .. filetype] = parser
+        parser_cache[str .. "!!" .. ls] = parser
     else
-        parser = parser_cache[str .. "!!" .. filetype]
+        parser = parser_cache[str .. "!!" .. ls]
     end
 
     if not parser then
-        vim.notify(string.format("No Tree-sitter parser found for ft: %s", filetype), vim.log.levels.WARN)
+        vim.notify(string.format("No Tree-sitter parser found for filetype: %s", lang), vim.log.levels.WARN)
         return highlights
     end
 
@@ -85,7 +85,7 @@ function M.compute_highlights(str, filetype)
     local root = tree:root()
     -- Iterate over all captures in the query
     for id, node in query:iter_captures(root, str, 0, -1) do
-        local name = "@" .. query.captures[id] .. "." .. filetype
+        local name = "@" .. query.captures[id] .. "." .. lang
         local range = { node:range() }
         local _, nscol, _, necol = range[1], range[2], range[3], range[4]
         table.insert(highlights, {
@@ -97,47 +97,32 @@ function M.compute_highlights(str, filetype)
     return highlights
 end
 
-function M.highlights(completion_item, ft)
-    if ft == nil or ft == "" or vim.b.ts_highlight == false then
+function M.highlights(completion_item, ls)
+    if ls == nil or ls == "" or vim.b.ts_highlight == false then
         return nil
-    end
-    local kind = completion_item.kind
-    local ft_config = M.config.ft[ft] or {}
-
-    -- If there's an overrides table and a matching kind override, call it
-    local overrides = ft_config.overrides or {}
-    if kind and overrides[kind] then
-        local override_func = overrides[kind]
-        local result = override_func(completion_item)
-        return M.apply_post_processing(result)
     end
 
     local item
-    if ft == "go" then
-        item = M.go_compute_completion_highlights(completion_item, ft)
-    elseif ft == "rust" then
-        item = M.rust_compute_completion_highlights(completion_item, ft)
-    elseif ft == "lua" then
-        item = M.lua_compute_completion_highlights(completion_item, ft)
-    elseif ft == "c" then
-        item = M.c_compute_completion_highlights(completion_item, ft)
-    elseif ft == "php" then
-        item = M.php_intelephense_compute_completion_highlights(completion_item, ft)
-    elseif vim.tbl_contains(M.config.ft.typescript.enabled, ft) then
-        if M.config.ft.typescript.ls == "typescript-language-server" then
-            item = M.typescript_language_server_label_for_completion(completion_item, ft)
-        elseif M.config.ft.typescript.ls == "vtsls" then
-            item = M.vtsls_compute_completion_highlights(completion_item, ft)
-        else
-            vim.notify("unknown language server name for typescript", vim.log.levels.WARN)
-            return
-        end
+    if ls == "gopls" then
+        item = M.go_compute_completion_highlights(completion_item, ls)
+    elseif ls == "rust-analyzer" then
+        item = M.rust_compute_completion_highlights(completion_item, ls)
+    elseif ls == "lua_ls" then
+        item = M.lua_compute_completion_highlights(completion_item, ls)
+    elseif ls == "clangd" then
+        item = M.c_compute_completion_highlights(completion_item, ls)
+    elseif ls == "typescript-language-server" or ls == "ts_ls" then
+        item = M.typescript_language_server_label_for_completion(completion_item, ls)
+    elseif ls == "vtsls" then
+        item = M.vtsls_compute_completion_highlights(completion_item, ls)
+    elseif ls == "intelephense" then
+        item = M.php_intelephense_compute_completion_highlights(completion_item, ls)
     else
         -- No languages detected so check if we should highlight with default or not
-        if not M.config.ft.fallback then
+        if not M.config.ls.fallback then
             return nil
         end
-        item = M.default_highlight(completion_item, ft)
+        item = M.default_highlight(completion_item, ls)
     end
 
     M.apply_post_processing(item)
@@ -164,14 +149,14 @@ function M.apply_post_processing(item)
     end
 end
 
-function M.rust_compute_completion_highlights(completion_item, ft)
-    local vim_item = M._rust_compute_completion_highlights(completion_item, ft)
+function M.rust_compute_completion_highlights(completion_item, ls)
+    local vim_item = M._rust_compute_completion_highlights(completion_item, ls)
     if vim_item.text ~= nil then
         for _, match in ipairs({ "%(use .-%)", "%(as .-%)", "%(alias .-%)" }) do
             local s, e = string.find(vim_item.text, match)
             if s ~= nil and e ~= nil then
                 table.insert(vim_item.highlights, {
-                    M.config.ft.rust.extra_info_hl,
+                    M.config.ls["rust-analyzer"].extra_info_hl,
                     range = { s - 1, e },
                 })
             end
@@ -180,12 +165,12 @@ function M.rust_compute_completion_highlights(completion_item, ft)
     return vim_item
 end
 
-function M.default_highlight(completion_item, ft)
+function M.default_highlight(completion_item, ls)
     local label = completion_item.label
     if label == nil then
         return ""
     end
-    return M.highlight_range(label, ft, 0, #label)
+    return M.highlight_range(label, ls, 0, #label)
 end
 
 function M.hl_exist_or(hl_group, fallback)
@@ -197,21 +182,21 @@ function M.hl_exist_or(hl_group, fallback)
     end
 end
 
-function M._rust_compute_completion_highlights(completion_item, ft)
+function M._rust_compute_completion_highlights(completion_item, ls)
     local detail = completion_item.labelDetails and completion_item.labelDetails.detail or completion_item.detail
     local function_signature = completion_item.labelDetails and completion_item.labelDetails.description
         or completion_item.detail
 
     local kind = completion_item.kind
     if not kind then
-        return M.highlight_range(completion_item.label, ft, 0, #completion_item.label)
+        return M.highlight_range(completion_item.label, ls, 0, #completion_item.label)
     end
 
     if kind == M.Kind.Field and detail then
         local name = completion_item.label
         local text = string.format("%s: %s", name, detail)
         local source = string.format("struct S { %s }", text)
-        return M.highlight_range(source, ft, 11, 11 + #text)
+        return M.highlight_range(source, ls, 11, 11 + #text)
         --
     elseif
         (kind == M.Kind.Constant or kind == M.Kind.Variable)
@@ -221,10 +206,10 @@ function M._rust_compute_completion_highlights(completion_item, ft)
         local name = completion_item.label
         local text = string.format("%s: %s", name, completion_item.detail or detail)
         local source = string.format("let %s = ();", text)
-        return M.highlight_range(source, ft, 4, 4 + #text)
+        return M.highlight_range(source, ls, 4, 4 + #text)
         --
     elseif (kind == M.Kind.EnumMember) and detail then
-        return M.highlight_range(detail, ft, 0, #detail)
+        return M.highlight_range(detail, ls, 0, #detail)
         --
     elseif (kind == M.Kind.Function or kind == M.Kind.Method) and detail then
         local pattern = "%((.-)%)"
@@ -250,12 +235,12 @@ function M._rust_compute_completion_highlights(completion_item, ft)
             -- Construct the fake source string as in Rust
             local source = string.format("%s %s {}", prefix, text)
 
-            return M.highlight_range(source, ft, #prefix + 1, #source - 3)
+            return M.highlight_range(source, ls, #prefix + 1, #source - 3)
         else
             -- Check if the detail starts with "macro_rules! "
             if completion_item.detail and vim.startswith(completion_item.detail, "macro_rules") then
                 local source = completion_item.label
-                return M.highlight_range(source, ft, 0, #source)
+                return M.highlight_range(source, ls, 0, #source)
             end
         end
         --
@@ -297,10 +282,10 @@ function M._rust_compute_completion_highlights(completion_item, ft)
 end
 
 -- `left` is inclusive and `right` is exclusive (also zero indexed), to better fit
--- `nvim_buf_set_extmark` semantic, so `M.highlight_range(text, ft, 0, #text)` is the entire range.
-function M.highlight_range(text, ft, left, right)
+-- `nvim_buf_set_extmark` semantic, so `M.highlight_range(text, ls, 0, #text)` is the entire range.
+function M.highlight_range(text, ls, left, right)
     local highlights = {}
-    local full_hl = M.compute_highlights(text, ft)
+    local full_hl = M.compute_highlights(text, ls)
 
     for _, hl in ipairs(full_hl) do
         local s, e = hl.range[1], hl.range[2]
@@ -325,13 +310,13 @@ function M.highlight_range(text, ft, left, right)
     }
 end
 
-function M.lua_compute_completion_highlights(completion_item, ft)
-    local vim_item = M._lua_compute_completion_highlights(completion_item, ft)
+function M.lua_compute_completion_highlights(completion_item, ls)
+    local vim_item = M._lua_compute_completion_highlights(completion_item, ls)
     if vim_item.text ~= nil then
         local s, e = string.find(vim_item.text, "%b()")
         if s ~= nil and e ~= nil then
             table.insert(vim_item.highlights, {
-                M.config.ft.lua.auguments_hl,
+                M.config.ls.lua_ls.auguments_hl,
                 range = { s - 1, e },
             })
         end
@@ -339,31 +324,31 @@ function M.lua_compute_completion_highlights(completion_item, ft)
     return vim_item
 end
 
-function M._lua_compute_completion_highlights(completion_item, ft)
+function M._lua_compute_completion_highlights(completion_item, ls)
     local label = completion_item.label
     local kind = completion_item.kind
 
     if not kind then
-        return M.highlight_range(label, ft, 0, #label)
+        return M.highlight_range(label, ls, 0, #label)
     end
     if kind == M.Kind.Field then
         local text = string.format("%s", label)
         local source = string.format("v.%s", text)
-        return M.highlight_range(source, ft, 2, 2 + #text)
+        return M.highlight_range(source, ls, 2, 2 + #text)
     else
-        return M.highlight_range(label, ft, 0, #label)
+        return M.highlight_range(label, ls, 0, #label)
     end
 end
 
-function M.typescript_language_server_label_for_completion(item, language)
-    local label = item.label
-    local detail = item.detail
-    local kind = item.kind
+function M.typescript_language_server_label_for_completion(completion_item, ls)
+    local label = completion_item.label
+    local detail = completion_item.detail
+    local kind = completion_item.kind
     -- Combine label + detail for final display
     local text = detail and (label .. " " .. detail) or label
 
     if not kind then
-        return M.highlight_range(text, language, 0, #text)
+        return M.highlight_range(text, ls, 0, #text)
     end
 
     local highlight_name
@@ -392,7 +377,8 @@ function M.typescript_language_server_label_for_completion(item, language)
 
     if detail then
         table.insert(highlights, {
-            M.config.ft.typescript.extra_info_hl,
+            ls == "typescript-language-server" and M.config.ls["typescript-language-server"].extra_info_hl
+                or M.config.ls.ts_ls.extra_info_hl,
             range = { #label + 1, #label + 1 + #detail },
         })
     end
@@ -405,7 +391,7 @@ end
 
 -- see https://github.com/zed-industries/zed/pull/13043
 -- Untestd.
-function M.vtsls_compute_completion_highlights(completion_item, language)
+function M.vtsls_compute_completion_highlights(completion_item, ls)
     local function one_line(s)
         s = s:gsub("    ", "")
         s = s:gsub("\n", " ")
@@ -417,7 +403,7 @@ function M.vtsls_compute_completion_highlights(completion_item, language)
 
     local kind = completion_item.kind
     if not kind then
-        return M.highlight_range(label, language, 0, #label)
+        return M.highlight_range(label, ls, 0, #label)
     end
 
     local highlight_name
@@ -450,13 +436,13 @@ function M.vtsls_compute_completion_highlights(completion_item, language)
     if description then
         text = label .. " " .. one_line(description)
         table.insert(highlights, {
-            M.config.ft.typescript.extra_info_hl,
+            M.config.ls.vtsls.extra_info_hl,
             range = { #label + 1, #text - 1 },
         })
     elseif detail then
         text = label .. " " .. one_line(detail)
         table.insert(highlights, {
-            M.config.ft.typescript.extra_info_hl,
+            M.config.ls.vtsls.extra_info_hl,
             range = { #label + 1, #text - 1 },
         })
     end
@@ -467,8 +453,8 @@ function M.vtsls_compute_completion_highlights(completion_item, language)
     }
 end
 
-function M.c_compute_completion_highlights(completion_item, ft)
-    local vim_item = M._c_compute_completion_highlights(completion_item, ft)
+function M.c_compute_completion_highlights(completion_item, ls)
+    local vim_item = M._c_compute_completion_highlights(completion_item, ls)
     if vim_item.text ~= nil then
         vim_item.text = vim_item.text:gsub(";", " ")
         local document = completion_item.documentation
@@ -476,7 +462,7 @@ function M.c_compute_completion_highlights(completion_item, ft)
             local len = #vim_item.text
             vim_item.text = string.gsub(vim_item.text .. "  " .. document.value, "\n", " ")
             table.insert(vim_item.highlights, {
-                M.config.ft.c.extra_info_hl,
+                M.config.ls.clangd.extra_info_hl,
                 range = { len + 2, #vim_item.text },
             })
         end
@@ -493,7 +479,7 @@ function M._c_compute_completion_highlights(completion_item, ft)
 
     -- If no kind, just fallback to highlighting the cleaned-up label
     if not kind then
-        return M.highlight_range(label, ft, 0, #label)
+        return M.highlight_range(label, ls, 0, #label)
     end
 
     -- Fields with detail => "detail label" => highlight in "struct S { ... }"
@@ -501,18 +487,18 @@ function M._c_compute_completion_highlights(completion_item, ft)
         local text = string.format("%s %s", detail, label)
         local source = string.format("struct S { %s }", text)
         -- offset 11 is after "struct S { "
-        return M.highlight_range(source, ft, 11, 11 + #text)
+        return M.highlight_range(source, ls, 11, 11 + #text)
 
         -- Constants or Variables with detail => "detail label", highlight entire text
     elseif (kind == M.Kind.Constant or kind == M.Kind.Variable) and detail and #detail > 0 then
         -- &chunk;Chunk -> chunk: Chunk
         local text = string.format("&%s;%s", label, detail)
-        return M.highlight_range(text, ft, 1, #text)
+        return M.highlight_range(text, ls, 1, #text)
 
         -- Functions or Methods with detail => "detail label", might find '('
     elseif (kind == M.Kind.Function or kind == M.Kind.Method) and detail and #detail > 0 then
         local text = string.format("void %s%s;%s", label, labelDetails.detail or "", detail)
-        return M.highlight_range(text, ft, 5, #text)
+        return M.highlight_range(text, ls, 5, #text)
         --
     else
         local highlight_name = nil
@@ -551,13 +537,13 @@ function M._c_compute_completion_highlights(completion_item, ft)
     }
 end
 
-function M.go_compute_completion_highlights(completion_item, ft)
+function M.go_compute_completion_highlights(completion_item, ls)
     local label = completion_item.label
     local detail = completion_item.labelDetails and completion_item.labelDetails.detail or completion_item.detail
     local kind = completion_item.kind
 
     if not kind then
-        return M.highlight_range(label, ft, 0, #label)
+        return M.highlight_range(label, ls, 0, #label)
     end
 
     -- Gopls returns nested fields and methods as completions.
@@ -573,41 +559,41 @@ function M.go_compute_completion_highlights(completion_item, ft)
     if kind == M.Kind.Module and detail then
         local text = string.format("%s %s", label, detail)
         local source = string.format("import %s", text)
-        return M.highlight_range(source, ft, 7, 7 + #text)
+        return M.highlight_range(source, ls, 7, 7 + #text)
         --
     elseif (kind == M.Kind.Constant or kind == M.Kind.Variable) and detail then
         local text
-        if M.config.ft.go.add_colon_before_type then
+        if M.config.ls.gopls.add_colon_before_type then
             text = string.format("%s: %s", label, detail)
         else
             text = string.format("%s %s", label, detail)
         end
         local var_part = text:sub(name_offset)
         local source = string.format("var %s", var_part)
-        local item = M.highlight_range(source, ft, 4, 4 + #var_part)
+        local item = M.highlight_range(source, ls, 4, 4 + #var_part)
         return M.adjust_range(item, name_offset, text)
         --
     elseif kind == M.Kind.Struct then
         local text = string.format("%s", label)
         local source = string.format("type %s struct {}", text:sub(name_offset))
-        local item = M.highlight_range(source, ft, 5, 5 + #text:sub(name_offset))
+        local item = M.highlight_range(source, ls, 5, 5 + #text:sub(name_offset))
         return M.adjust_range(item, name_offset, text)
         --
     elseif kind == M.Kind.Interface then
         local text = string.format("%s", label)
         local source = string.format("type %s interface {}", text:sub(name_offset))
-        local item = M.highlight_range(source, ft, 5, 5 + #text:sub(name_offset))
+        local item = M.highlight_range(source, ls, 5, 5 + #text:sub(name_offset))
         return M.adjust_range(item, name_offset, text)
         --
     elseif kind == M.Kind.Field and detail then
         local text
-        if M.config.ft.go.add_colon_before_type then
+        if M.config.ls.gopls.add_colon_before_type then
             text = string.format("%s: %s", label, detail)
         else
             text = string.format("%s %s", label, detail)
         end
         local source = string.format("type T struct { %s }", text:sub(name_offset))
-        local item = M.highlight_range(source, ft, 16, 16 + #text:sub(name_offset))
+        local item = M.highlight_range(source, ls, 16, 16 + #text:sub(name_offset))
         return M.adjust_range(item, name_offset, text)
         --
     elseif (kind == M.Kind.Function or kind == M.Kind.Method) and detail then
@@ -615,7 +601,7 @@ function M.go_compute_completion_highlights(completion_item, ft)
             local signature = detail:sub(5)
             local text = string.format("%s%s", label, signature)
             local source = string.format("func %s {}", text:sub(name_offset))
-            local item = M.highlight_range(source, ft, 5, 5 + #text:sub(name_offset))
+            local item = M.highlight_range(source, ls, 5, 5 + #text:sub(name_offset))
             return M.adjust_range(item, name_offset, text)
         end
         --
@@ -657,7 +643,7 @@ function M.adjust_range(item, name_offset, label)
     return item
 end
 
-function M.php_intelephense_compute_completion_highlights(completion_item, ft)
+function M.php_intelephense_compute_completion_highlights(completion_item, ls)
     local label = completion_item.label
     local detail = completion_item.labelDetails and completion_item.labelDetails.detail or completion_item.detail
     local kind = completion_item.kind
@@ -665,23 +651,23 @@ function M.php_intelephense_compute_completion_highlights(completion_item, ft)
     if (kind == M.Kind.Function or kind == M.Kind.Method) and detail and #detail > 0 then
         local signature = detail:sub(#label + 1)
         local text = string.format("%s <?php fn %s {}", label, signature)
-        local item = M.highlight_range(text, ft, 6 + #label, #text - 2)
+        local item = M.highlight_range(text, ls, 6 + #label, #text - 2)
         return M.adjust_range(item, #label + 1, label)
         --
     elseif kind == M.Kind.EnumMember and detail and #detail > 0 then
         local text = string.format("%s <?php %s;", label, detail)
-        local item = M.highlight_range(text, ft, #label + 6, #text - 1)
+        local item = M.highlight_range(text, ls, #label + 6, #text - 1)
         return M.adjust_range(item, #label + 1, label)
         --
     elseif (kind == M.Kind.Property or kind == M.Kind.Variable) and detail and #detail > 0 then
         detail = string.gsub(detail, ".*\\(.)", "%1")
         local text = string.format("%s <?php fn(): %s;", label, detail)
-        local item = M.highlight_range(text, ft, #label + 12, #text - 1)
+        local item = M.highlight_range(text, ls, #label + 12, #text - 1)
         return M.adjust_range(item, #label + 1, label)
         --
     elseif kind == M.Kind.Constant and detail and #detail > 0 then
         local text = string.format("%s <?php %s;", label, detail)
-        local item = M.highlight_range(text, ft, #label + 6, #text - 1)
+        local item = M.highlight_range(text, ls, #label + 6, #text - 1)
         return M.adjust_range(item, #label + 1, label)
         --
     else
