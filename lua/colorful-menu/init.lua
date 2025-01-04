@@ -127,6 +127,13 @@ function M.blink_highlights(ctx)
 end
 
 function M.highlights(completion_item, ls)
+    if ls == vim.bo.filetype then
+        vim.notify(
+            "Legacy per-filetype option is deprecated, prefer per-language-server options, please see README",
+            vim.log.levels.WARN
+        )
+        return nil
+    end
     if completion_item == nil or ls == nil or ls == "" or vim.b.ts_highlight == false then
         return nil
     end
