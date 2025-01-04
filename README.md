@@ -76,21 +76,18 @@ return {
 
 ```lua
 formatting = {
-    fields = { "kind", "abbr", "menu" },
     format = function(entry, vim_item)
-        local client_name = vim.tbl_get(entry, "source", "source", "client", "name") -- For example `lua_ls` etc
-        local completion_item = entry:get_completion_item()
-        local highlights_info =
-            require("colorful-menu").highlights(completion_item, client_name)
+        local highlights_info = require("colorful-menu").cmp_highlights(entry)
 
 		-- error, such as missing parser, fallback to use raw label.
         if highlights_info == nil then
-            vim_item.abbr = completion_item.label
+            vim_item.abbr = entry:get_completion_item().label
         else
             vim_item.abbr_hl_group = highlights_info.highlights
             vim_item.abbr = highlights_info.text
         end
 
+        -- This is optional, you can omit if you don't use lspkind.
         local kind = require("lspkind").cmp_format({
             mode = "symbol_text",
         })(entry, vim_item)
@@ -109,38 +106,23 @@ config = function()
     require("blink.cmp").setup({
         completion = {
             menu = {
-                auto_show = true,
                 draw = {
                     components = {
                         label = {
                             width = { fill = true, max = 60 },
                             text = function(ctx)
-                                local client = vim.lsp.get_client_by_id(ctx.item.client_id)
-                                if not client then
-                                    return ctx.label
-                                end
-                                local highlights_info = require("colorful-menu").highlights(ctx.item, client.name)
+                                local highlights_info = require("colorful-menu").blink_highlights(ctx)
                                 if highlights_info ~= nil then
-                                    return highlights_info.text
+                                    return highlights_info.label
                                 else
                                     return ctx.label
                                 end
                             end,
                             highlight = function(ctx)
-                                local client = vim.lsp.get_client_by_id(ctx.item.client_id)
                                 local highlights = {}
-                                if client then
-                                    local highlights_info =
-                                    require("colorful-menu").highlights(ctx.item, client.name)
-                                    if highlights_info ~= nil then
-                                        for _, info in ipairs(highlights_info.highlights) do
-                                            table.insert(highlights, {
-                                                info.range[1],
-                                                info.range[2],
-                                                group = ctx.deprecated and "BlinkCmpLabelDeprecated" or info[1],
-                                            })
-                                        end
-                                    end
+                                local highlights_info = require("colorful-menu").blink_highlights(ctx)
+                                if highlights_info ~= nil then
+                                    highlights = highlights_info.highlights
                                 end
                                 for _, idx in ipairs(ctx.label_matched_indices) do
                                     table.insert(highlights, { idx, idx + 1, group = "BlinkCmpLabelMatch" })

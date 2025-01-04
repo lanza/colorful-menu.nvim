@@ -97,8 +97,37 @@ function M.compute_highlights(str, ls)
     return highlights
 end
 
+function M.cmp_highlights(entry)
+    local client = vim.tbl_get(entry, "source", "source", "client") -- For example `lua_ls` etc
+    if client and not client.is_stopped() then
+        return M.highlights(entry:get_completion_item(), client.name)
+    end
+    return nil
+end
+
+function M.blink_highlights(ctx)
+    local client = vim.lsp.get_client_by_id(ctx.item.client_id)
+    local highlights = {}
+    if client and not client.is_stopped() then
+        local highlights_info = M.highlights(ctx.item, client.name)
+        if highlights_info ~= nil then
+            for _, info in ipairs(highlights_info.highlights) do
+                table.insert(highlights, {
+                    info.range[1],
+                    info.range[2],
+                    group = ctx.deprecated and "BlinkCmpLabelDeprecated" or info[1],
+                })
+            end
+        else
+            return nil
+        end
+        return { label = highlights_info.text, highlights = highlights }
+    end
+    return nil
+end
+
 function M.highlights(completion_item, ls)
-    if ls == nil or ls == "" or vim.b.ts_highlight == false then
+    if completion_item == nil or ls == nil or ls == "" or vim.b.ts_highlight == false then
         return nil
     end
 
