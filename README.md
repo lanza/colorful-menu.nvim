@@ -14,7 +14,7 @@ to lspkind.nvim.
 run `nvim  -u ~/.config/nvim/repro.lua ~/.config/nvim/repro.lua` as a minimal reproduce template
 see [repro.lua](https://github.com/xzbdmw/colorful-menu.nvim/blob/master/repro.lua)
 
-Has built-in supports for **rust**, **go**, **typescript**, **lua**, **c**, **php**, for any other language, default to directly
+Has built-in supports for **rust-analyzer(rust)**, **gopls(go)**, **typescript-language-server/vtsls**, **lua-ls**, **clangd(C)**, **intelephense(php)**, for any other language, default to directly
 apply treesitter highlight to label (feel free to open feature request for more languages).
 
 Currently supports **nvim-cmp** and **blink.cmp**.
@@ -141,7 +141,7 @@ end,
 
 ## Screen
 
-# Go
+# gopls
 ## before:
 <img width="814" alt="image" src="https://github.com/user-attachments/assets/30614c61-32d9-4d64-8742-58dd443de6ae" />
 
@@ -155,7 +155,7 @@ end,
 https://github.com/user-attachments/assets/fe72a70b-28ec-460f-9b77-12c95bf74e2e
 </details>
 
-# Rust
+# rust-analyzer
 ## before:
 <img width="669" alt="image" src="https://github.com/user-attachments/assets/1c053055-48c7-4b2f-b228-daa77f740eef" />
 
@@ -167,7 +167,7 @@ https://github.com/user-attachments/assets/fe72a70b-28ec-460f-9b77-12c95bf74e2e
 https://github.com/user-attachments/assets/94cb79f0-b93f-4749-99b7-15eae3764f0f
 </details>
 
-# C
+# clangd
 ## before：
 <img width="605" alt="image" src="https://github.com/user-attachments/assets/be41f824-1ba3-48e8-baad-274efb298a92" />
 
@@ -179,7 +179,7 @@ https://github.com/user-attachments/assets/94cb79f0-b93f-4749-99b7-15eae3764f0f
 https://github.com/user-attachments/assets/725ea273-b598-4947-b189-f642fa51cf9b
 </details>
 
-# Lua
+# lua_ls
 ## before:
 <img width="608" alt="image" src="https://github.com/user-attachments/assets/f8610a41-af17-458e-852d-f86c90e9860d" />
 
@@ -191,7 +191,7 @@ https://github.com/user-attachments/assets/725ea273-b598-4947-b189-f642fa51cf9b
 https://github.com/user-attachments/assets/725ea273-b598-4947-b189-f642fa51cf9b)](https://github.com/user-attachments/assets/1e5b1587-4374-49c3-88e7-1e8ed37b3210
 </details>
 
-# Typescript
+# typescript-language-server
 ## before:
 <img width="383" alt="image" src="https://github.com/user-attachments/assets/a787d034-6b33-4ecb-8512-bfb8e2dfa7b3" />
 
@@ -202,7 +202,7 @@ https://github.com/user-attachments/assets/725ea273-b598-4947-b189-f642fa51cf9b)
 https://github.com/user-attachments/assets/07509e0c-8c7a-4895-8096-73343f85c583
 </details>
 
-# PHP Thanks to [@pnx](https://github.com/pnx)
+# intelephense(PHP) Thanks to [@pnx](https://github.com/pnx)
 ## before:
 ![image](https://github.com/user-attachments/assets/5c26d88e-d37c-46aa-a8fd-22e44aa16c05)
 
