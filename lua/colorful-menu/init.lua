@@ -530,24 +530,26 @@ function M.zig_compute_completion_highlights(completion_item, ft)
 	local kind = completion_item.kind
 
 	if not kind then
-		return M.highlight_range(label, ft, 0, #label - 1)
+		return M.highlight_range(label, ft, 0, #label)
 	end
 
-	if (kind == M.Kind.Constant or kind == M.Kind.Variable or kind == M.Kind.Struct) and detail then
+	if
+		(kind == M.Kind.Constant or kind == M.Kind.Variable or kind == M.Kind.Struct or kind == M.Kind.Enum) and detail
+	then
 		if detail == "type" then
 			local source = string.format("fn(s: %s)", label)
-			return M.highlight_range(source, ft, 6, 5 + #label)
+			return M.highlight_range(source, ft, 6, 6 + #label)
 		else
 			local text = string.format("%s: %s", label, detail)
 			local source = string.format("fn(%s)", text)
-			return M.highlight_range(source, ft, 3, 2 + #text)
+			return M.highlight_range(source, ft, 3, 3 + #text)
 		end
 		--
-	elseif kind == M.Kind.Field and detail then
+	elseif (kind == M.Kind.Field or kind == M.Kind.EnumMember) and detail then
 		-- const x = struct { name: []const u8 };
 		local text = string.format("%s: %s", label, detail)
 		local source = string.format("const x = struct { %s }", text)
-		return M.highlight_range(source, ft, 19, 18 + #text)
+		return M.highlight_range(source, ft, 19, 19 + #text)
 		--
 	elseif (kind == M.Kind.Function or kind == M.Kind.Method) and detail then
 		if detail:sub(1, 2) == "fn" then
